@@ -1,0 +1,99 @@
+blueprint:
+  name: Play Next Episode
+  description: >-
+    A script that sends a request to play a show to a targeted media player.
+  domain: script
+  author: Ken Roecks
+  input:
+    shield_player:
+      name: Media Player
+      description: The Media Player that turns on the TV
+      selector:
+        target:
+          entity:
+          - domain:
+            - media_player
+    remote:
+      name: Media Player Remote
+      description: The Android TV that starts Apps
+      selector:
+        target:
+          entity:
+          - domain:
+            - remote
+    plex_media_player:
+      name: Plex Media Player
+      description: The Plex Media player that plays content
+      selector:
+        target:
+          entity:
+          - domain:
+            - media_player
+    title:
+      name: Title
+      description: The title of the show
+      default: ""
+      selector:
+        text:
+mode: single
+variables: 
+  show_title: !input title
+  shield_id: !input shield_player
+  remote_id: !input remote
+sequence:
+  - service: system_log.write
+    data:
+      level: info
+      message: >
+        "Playing Show={{ show_title }} Shield={{ shield_id }} Remote={{remote_id}}"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ is_state(shield_id, 'off') }}"
+        sequence:
+          - service: media_player.turn_on
+            metadata: {}
+            data: {}
+            target: !input shield_player
+          - delay:
+              hours: 0a
+              minutes: 0
+              seconds: 0
+              milliseconds: 100
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ is_state_attr(shield_id, 'app_id', 'com.plexapp.android') }}"
+        sequence: []
+      - conditions: []
+        sequence:
+          - service: remote.turn_on
+            data:
+              activity: plex://
+            target: !input remote
+            enabled: true
+          - delay:
+              hours: 0
+              minutes: 0
+              seconds: 3
+              milliseconds: 0
+  - service: media_player.turn_on
+    target: !input shield_player
+  - service: remote.turn_on
+    data:
+      activity: plex://
+    target: !input remote
+    enabled: true
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 3
+      milliseconds: 0
+  - service: media_player.play_media
+    data:
+      media_content_type: EPISODE
+      media_content_id: >-
+        plex://{ "library_name": "TV Shows", "show_name": "{{ title }}",
+        "episode.unwatched": true, "episode.inProgress": [true, false],
+        "resume": 1, "maxresults": 1 }
+    target: !input plex_media_player
